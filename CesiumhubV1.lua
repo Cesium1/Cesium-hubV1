@@ -1,36 +1,76 @@
-<?php
-$servername = "localhost";
-$name = "user";
-$username = "pass";
-$password = "demo";
+local key = "7rJhyZfp9hKZ"
 
-$key = $_GET["key"];
-$hwid = $_GET["hwid"];
+local http_request = http_request
+if syn then 
+    http_request = syn.request
+elseif SENTINEL_V2 then
+    http_request = request 
+end
 
-$conn = new mysqli($servername, $username, $password, $name);
+local getservice = game.GetService
+local httpservice = getservice(game, "HttpService")
 
-if ($conn->connect_error) {
-  die("Connection failed: " . $conn->connect_error);
-}
+local function http_request_get(url, headers) 
+    return http_request({Url=url,Method="GET",Headers=headers or nil}).Body 
+end
 
-function getUserIpAddr(){
-    if(!empty($_SERVER['HTTP_CLIENT_IP'])){
-        $ip = $_SERVER['HTTP_CLIENT_IP'];
-    }elseif(!empty($_SERVER['HTTP_X_FORWARDED_FOR'])){
-        $ip = $_SERVER['HTTP_X_FORWARDED_FOR'];
-    }else{
-        $ip = $_SERVER['REMOTE_ADDR'];
-    }
-    return $ip;
-}
+local function jsondecode(json)
+	local jsonTable = {}
+	 pcall(function() jsonTable = httpservice.JSONDecode(httpservice,json) end)
+	return jsonTable
+end
 
-$ips = getUserIpAddr();
+local chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+local length = 50
+local randomString = ''
 
-$sql = "UPDATE whitelistbot SET hwid = '$hwid', ip = '$ips' WHERE userkey = '$key'";
+charTable = {}
+for c in chars:gmatch"." do
+    table.insert(charTable, c)
+end
 
-if ($key and $hwid) {
-if ($conn->query($sql) === TRUE) {
-  echo "Hi Guys!";
-}
+for i = 1, length do
+    randomString = randomString .. charTable[math.random(1, #charTable)]
+end
 
-?>
+local body = http_request_get('https://httpbin.org/get')
+local decoded = jsondecode(body)
+local hwid_list = {"Syn-Fingerprint", "Exploit-Guid", "Proto-User-Identifier", "Sentinel-Fingerprint"};
+local hwid = "";
+
+for i, v in next, hwid_list do
+    if decoded.headers[v] then
+        hwid = decoded.headers[v];
+        break
+    end
+end
+
+local random = randomString
+
+local data = jsondecode(http_request_get("https://whitelist.com/server.php?key=".. key .."&random="..random))
+
+if data.Key == key then
+    if data.Blacklist == "False" then
+        if data.Hwid == Hwid or "Unknown" then
+            if data.random == random then
+                if data.Hwid == "Unknown" then
+                    -- update hwid
+                    print("Whitelist !!!")
+                    http_request_get("https://whitelist.com/changehwid.php?key=".. key .."&hwid="..hwid)
+                    print("Update Hwid")
+                else
+                    -- no update hwid
+                    print("Whitelist !!!")
+                end
+            else
+                warn("Invalid Random")
+            end
+        else
+            warn("Invalid Hwid")
+        end
+    else
+        warn("Blacklist Reason : "..data.Reason)
+    end
+else
+    warn("Invalid Key")
+end
